@@ -129,6 +129,8 @@ if analyze:
             if not is_cv(raw_text):
                 st.error("⚠️ This doesn't look like a CV! Please upload a proper resume PDF.")
                 st.stop()
+            cleaned = clean_text(raw_text)
+
 
             # Predict
             embedding = embedder.encode([cleaned])
