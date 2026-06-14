@@ -8,8 +8,10 @@ import nltk
 nltk.download('stopwords', quiet=True)
 
 # ── Load model and embedder ────────────────────────────────────────────
+cv_classifier = joblib.load('cv_classifier.pkl')
 model = joblib.load('resume_model.pkl')
 embedder = joblib.load('embedder.pkl')
+
 
 # ── Text cleaning ──────────────────────────────────────────────────────
 stop_words = set(stopwords.words('english'))
@@ -60,31 +62,113 @@ def get_missing_skills(resume_text, job_description):
     missing = job_words - resume_words - stop_words
     missing = [w for w in missing if len(w) > 3]
     return list(missing)[:10]
+
+#--------------------------------
+def is_cv(text):
+    cleaned = clean_text(text)
+    embedding = embedder.encode([cleaned])
+    prediction = cv_classifier.predict(embedding)[0]
+    confidence = cv_classifier.predict_proba(embedding).max() * 100
+    return prediction == 1, confidence
 # ── UI Config ──────────────────────────────────────────────────────────
 st.set_page_config(
     page_title="AI Resume Screener",
     page_icon="📄",
     layout="wide"
 )
-#--------------------------------
-def is_cv(text):
-    cv_keywords = [
-        'experience', 'education', 'skills', 'work',
-        'university', 'degree', 'project', 'internship',
-        'certification', 'languages', 'summary', 'objective',
-        'employment', 'qualification', 'achievement'
-    ]
-    text_lower = text.lower()
-    matches = [kw for kw in cv_keywords if kw in text_lower]
-    return len(matches) >= 3
+
+# ── Custom CSS ─────────────────────────────────────────────────────────
+st.markdown("""
+    <style>
+    .main-header {
+        background: #26215C;
+        padding: 2rem;
+        border-radius: 12px;
+        margin-bottom: 1.5rem;
+        text-align: center;
+    }
+    .main-header h1 {
+        color: #CECBF6;
+        margin: 0;
+        font-size: 2.2rem;
+    }
+    .main-header p {
+        color: #AFA9EC;
+        margin-top: 0.5rem;
+        font-size: 1rem;
+    }
+    div[data-testid="stMetric"] {
+        background-color: #EEEDFE;
+        border: 1px solid #CECBF6;
+        border-radius: 10px;
+        padding: 1rem;
+    }
+    .stButton button {
+        background-color: #534AB7;
+        color: white;
+        font-weight: 600;
+        border-radius: 8px;
+        border: none;
+        padding: 0.6rem 2rem;
+    }
+    .stButton button:hover {
+        background-color: #3C3489;
+        color: white;
+    }
+    </style>
+""", unsafe_allow_html=True)
 
 # ── Header ─────────────────────────────────────────────────────────────
 st.markdown("""
-    <h1 style='text-align: center; color: #1E88E5;'>📄 AI-Powered Resume Screener</h1>
-    <p style='text-align: center; color: gray;'>Upload your resume and paste a job description to see how well you match!</p>
+    <div class="main-header">
+        <h1>📄 AI-Powered Resume Screener</h1>
+        <p>Upload your resume and paste a job description to see how well you match — powered by NLP & Machine Learning</p>
+    </div>
 """, unsafe_allow_html=True)
 
-st.divider()
+# ── Sidebar ────────────────────────────────────────────────────────────
+with st.sidebar:
+    st.markdown("""
+        <style>
+        section[data-testid="stSidebar"] {
+            background-color: #EEEDFE;
+        }
+        section[data-testid="stSidebar"] h3 {
+            color: #26215C;
+        }
+        section[data-testid="stSidebar"] p, 
+        section[data-testid="stSidebar"] li {
+            color: #3C3489;
+        }
+        section[data-testid="stSidebar"] a {
+            color: #534AB7;
+            font-weight: 600;
+        }
+        </style>
+    """, unsafe_allow_html=True)
+
+    st.markdown("### 🧠 About This Tool")
+    st.markdown("""
+    This app uses **Sentence Transformers** to understand the meaning 
+    of your resume, not just keywords.
+
+    **How it works:**
+    1. Upload your resume (PDF)
+    2. Paste a job description
+    3. Get a match score, strong points & missing keywords
+    """)
+    st.divider()
+    st.markdown("### 📊 Model Info")
+    st.markdown("""
+    - **Accuracy:** 73.7%
+    - **Categories:** 19 job types
+    - **Embedding model:** all-MiniLM-L6-v2
+    """)
+    st.divider()
+    st.markdown("Made by **Amen Allah Abdelhafidh**")
+    st.markdown("[GitHub](https://github.com/amenallahabdelhafidh) · [LinkedIn](https://linkedin.com)")
+
+
 
 # ── Two column layout ──────────────────────────────────────────────────
 col_left, col_right = st.columns(2)
@@ -126,13 +210,14 @@ if analyze:
                 st.error("⚠️ Could not read this PDF! Make sure it's a valid PDF file.")
                 st.stop()
 
-            if not is_cv(raw_text):
-                st.error("⚠️ This doesn't look like a CV! Please upload a proper resume PDF.")
+            is_cv_result, cv_confidence = is_cv(raw_text)
+
+            if not is_cv_result:
+                st.error(f"⚠️ This doesn't look like a CV! (Confidence: {round(cv_confidence, 1)}%)")
                 st.stop()
             cleaned = clean_text(raw_text)
 
 
-            # Predict
             embedding = embedder.encode([cleaned])
             prediction = model.predict(embedding)[0]
 
