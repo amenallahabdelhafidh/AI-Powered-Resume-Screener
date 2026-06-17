@@ -1,3 +1,4 @@
 resume-screener/
 Resume_cleaned.csv
 Resume.csv
+.streamlit/secrets.toml
